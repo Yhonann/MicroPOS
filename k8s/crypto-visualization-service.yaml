@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: crypto-visualization
-        image: crypto-visualization:latest
+        image: localhost:5000/crypto-visualization-service:latest 
         ports:
         - containerPort: 3001
 ---
