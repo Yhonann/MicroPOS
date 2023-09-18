@@ -1,61 +1,39 @@
 const express = require('express');
 const cors = require('cors');
-const app = express();
 const amqp = require('amqplib');
 
-// Function to create a connection to RabbitMQ
-async function createConnection() {
-  try {
-    const connection = await amqp.connect('amqp://rabbitmq'); // Replace with your RabbitMQ server URL
-    return connection;
-  } catch (error) {
-    console.error('Error creating RabbitMQ connection:', error);
-  }
+const app = express();
+app.use(cors());
+
+async function connectToRabbitMQ() {
+  const connection = await amqp.connect('amqp://rabbitmq:5672');
+
+
+  const channel = await connection.createChannel();
+  return channel;
 }
 
-// Function to publish a message to RabbitMQ
-async function publishMessage(channel, queueName, message) {
-  try {
-    await channel.assertQueue(queueName);
-    channel.sendToQueue(queueName, Buffer.from(message));
-    console.log(`Sent message: "${message}"`);
-  } catch (error) {
-    console.error('Error publishing message:', error);
-  }
+async function sendMessage(channel, queue, message) {
+  await channel.assertQueue(queue);
+  channel.sendToQueue(queue, Buffer.from(message));
 }
 
-// Usage example: create a RabbitMQ connection and a channel
-let rabbitmqChannel;
-createConnection()
-  .then((connection) => {
-    return connection.createChannel();
-  })
-  .then((channel) => {
-    rabbitmqChannel = channel;
-    app.use(cors());
-
-    // Dummy processed data
-    const processedData = [
-      { name: 'Bitcoin', pileSize: 70 },
-      { name: 'Ethereum', pileSize: 30 }
-    ];
+(async () => {
+  try {
+    const channel = await connectToRabbitMQ();
 
     app.get('/api/crypto-visualization', (req, res) => {
-      res.json(processedData);
+      res.json([{ name: 'Bitcoin', pileSize: 70 }, { name: 'Ethereum', pileSize: 30 }]);
     });
 
-    const PORT = process.env.PORT || 3001;
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+    app.get('/api/send-message', (req, res) => {
+      sendMessage(channel, 'crypto_data_queue', 'Hello, RabbitMQ!');
+      res.send('Message sent to RabbitMQ');
     });
-  })
-  .catch((error) => {
-    console.error('Error:', error);
-  });
 
-// Usage example: publish a message to RabbitMQ
-app.get('/api/send-message', (req, res) => {
-  const message = 'Hello, RabbitMQ!';
-  publishMessage(rabbitmqChannel, 'crypto_data_queue', message);
-  res.send('Message sent to RabbitMQ');
-});
+    const PORT = process.env.PORT || 3006;
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  } catch (error) {
+    console.error('Failed to connect to RabbitMQ:', error);
+  }
+})();

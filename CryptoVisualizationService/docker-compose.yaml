@@ -1,0 +1,11 @@
+version: '3'
+services:
+  node-api:
+    build: .
+    ports:
+      - "3006:3006"
+  rabbitmq:
+    image: "rabbitmq:management"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
