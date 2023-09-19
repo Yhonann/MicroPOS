@@ -1,59 +1,54 @@
 const express = require('express');
 const app = express();
-const port = 3005; // Choose an appropriate port
+const port = 3005;
 const amqp = require('amqplib');
+const cors = require('cors');
 
-// RabbitMQ connection URL (replace with your RabbitMQ server URL)
-const rabbitmqUrl = 'amqp://rabbitmq'; // Example URL for a local RabbitMQ server
+const rabbitmqUrl = 'amqp://rabbitmq';
+const queueName = 'api-to-crypto-queue';
 
-// Queue name to consume messages from
-const queueName = 'crypto_data_queue';
-
-// Variable to store received crypto data
 let cryptoData = [];
 
-// Function to consume messages from the queue and store them
-async function consumeMessages() {
-  try {
-    // Create a connection to RabbitMQ
-    const connection = await amqp.connect(rabbitmqUrl);
-
-    // Create a channel
-    const channel = await connection.createChannel();
-
-    // Assert the queue exists (it will be created if not)
-    await channel.assertQueue(queueName);
-
-    // Define a callback function to handle incoming messages
-    channel.consume(queueName, (msg) => {
-      if (msg !== null) {
-        // Process the received message
-        const messageContent = msg.content.toString();
-        console.log('Received message:', messageContent);
-
-        // Parse the message and add it to the cryptoData array
-        const parsedMessage = JSON.parse(messageContent);
-        cryptoData.push(parsedMessage);
-
-        // Acknowledge the message to remove it from the queue
-        channel.ack(msg);
-      }
-    });
-
-    console.log(`Waiting for messages in ${queueName}. To exit, press CTRL+C`);
-  } catch (error) {
-    console.error('Error:', error);
-  }
+async function createQueue() {
+  const connection = await amqp.connect(rabbitmqUrl);
+  const channel = await connection.createChannel();
+  await channel.assertQueue(queueName, { durable: true });
 }
 
-// Start consuming messages
-consumeMessages();
+async function consumeMessages() {
+  const connection = await amqp.connect(rabbitmqUrl);
+  const channel = await connection.createChannel();
 
-// Create an API endpoint to retrieve crypto data
+  channel.consume(queueName, (msg) => {
+    if (msg !== null) {
+      const messageContent = msg.content.toString();
+      console.log('Received message:', messageContent);
+
+      const parsedMessage = JSON.parse(messageContent);
+      cryptoData.push(parsedMessage);
+
+      channel.ack(msg);
+    }
+  });
+
+  console.log(`Waiting for messages in ${queueName}. To exit, press CTRL+C`);
+}
+
+app.use(cors({
+  origin: "*",
+  methods: 'GET,POST',
+  credentials: true,
+  optionsSuccessStatus: 204,
+}));
+
+cors("*");
 app.get('/api/crypto-data', (req, res) => {
   res.json(cryptoData);
+  consumeMessages();
 });
 
-app.listen(port, () => {
+cors("*");
+app.listen(port, async () => {
+  await createQueue();
   console.log(`Crypto Data Service is running on port ${port}`);
 });
