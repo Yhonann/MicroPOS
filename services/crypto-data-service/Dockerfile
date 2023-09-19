@@ -11,8 +11,11 @@ RUN npm install
 # Copy source code
 COPY src/ ./src/
 
+
 # Expose API port
 EXPOSE 3005
+EXPOSE 5672
+
 
 # Start the application
 CMD ["npm", "start"]

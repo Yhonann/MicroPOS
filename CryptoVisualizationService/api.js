@@ -1,39 +1,53 @@
 const express = require('express');
 const cors = require('cors');
 const amqp = require('amqplib');
+const fetchCryptoData = require('./fetchCryptoData');
+const processCryptoData = require('./processCryptoData');
+const renderCoinPiles = require('./renderCoinPiles');
 
 const app = express();
-app.use(cors());
 
-async function connectToRabbitMQ() {
-  const connection = await amqp.connect('amqp://rabbitmq:5672');
+// Use environment variable for RabbitMQ URL or default to 'amqp://localhost'
+const rabbitmqUrl = process.env.RABBITMQ_URL || 'amqp://rabbitmq';
 
-
-  const channel = await connection.createChannel();
-  return channel;
+function connectToRabbitMQ() {
+  return amqp.connect(rabbitmqUrl)
+    .then(connection => connection.createChannel())
+    .then(channel => {
+      // Declare frontend-to-api-queue as a Classic Transient queue with auto-delete
+      return channel.assertQueue('frontend-to-api-queue', { durable: false, autoDelete: true })
+        .then(() => channel);
+    });
 }
 
-async function sendMessage(channel, queue, message) {
-  await channel.assertQueue(queue);
-  channel.sendToQueue(queue, Buffer.from(message));
+function sendMessage(channel, queue, message) {
+  channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)));
 }
 
-(async () => {
-  try {
-    const channel = await connectToRabbitMQ();
+connectToRabbitMQ()
+  .then(channel => {
+    const corsOptions = {
+      origin: '*',
+    };
+
+    app.use(cors(corsOptions));
 
     app.get('/api/crypto-visualization', (req, res) => {
-      res.json([{ name: 'Bitcoin', pileSize: 70 }, { name: 'Ethereum', pileSize: 30 }]);
+      fetchCryptoData()
+        .then(cryptoData => {
+          const processedCryptoData = processCryptoData(cryptoData);
+          sendMessage(channel, 'api-to-crypto-queue', processedCryptoData);
+          res.status(202).json({ message: 'Data sent to processing service' });
+        })
+        .catch(error => {
+          console.error('Failed to fetch or process crypto data:', error);
+          res.status(500).json({ error: 'Failed to fetch, process, or render crypto data' });
+        });
     });
 
-    app.get('/api/send-message', (req, res) => {
-      sendMessage(channel, 'crypto_data_queue', 'Hello, RabbitMQ!');
-      res.send('Message sent to RabbitMQ');
-    });
-
-    const PORT = process.env.PORT || 3006;
+    const PORT = process.env.PORT || 4001;
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  } catch (error) {
+  })
+  .catch(error => {
     console.error('Failed to connect to RabbitMQ:', error);
-  }
-})();
+  });

@@ -26,10 +26,4 @@ const renderCoinPiles = (coinPiles) => {
   animate();
 };
 
-// Example usage
-const coinPiles = [
-  { name: 'Bitcoin', pileSize: 70 },
-  { name: 'Ethereum', pileSize: 30 }
-];
-
-renderCoinPiles(coinPiles);
+module.exports = renderCoinPiles;

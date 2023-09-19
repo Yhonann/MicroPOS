@@ -7,11 +7,4 @@ const processCryptoData = (tvlData) => {
   return coinPiles;
 };
 
-// Example usage
-const tvlData = [
-  { name: 'Bitcoin', tvl: 900000000 },
-  { name: 'Ethereum', tvl: 400000000 }
-];
-
-const coinPiles = processCryptoData(tvlData);
-console.log(coinPiles);
+module.exports = processCryptoData;
