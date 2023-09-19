@@ -1,20 +1,11 @@
-# Use Node.js image
-FROM node:18
+# Use a minimal base image (e.g., Alpine Linux) as the base image
+FROM alpine:latest
 
-# Set working directory
-WORKDIR /usr/src/app
+# Set the working directory within the container
+WORKDIR /app
 
-# Install dependencies
-COPY package*.json ./
-RUN npm install
-
-# Copy source code
+# Copy your service's source code into the container
 COPY . .
 
-# Expose API port
-EXPOSE 4000
-EXPOSE 5672
-
-
-# Start the application
-CMD ["npm", "start"]
+# Specify the command to start your service
+CMD ["node", "api.js"]
